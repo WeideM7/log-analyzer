@@ -33,7 +33,7 @@
 
 ### 2. 载入日志
 
-有三种方式载入日志：
+有两种方式载入日志：
 
 **方式 A：手动选择文件**
 - 点击每个栏位的"选择TXT"按钮，选择 `.txt` 或 `.log` 文件
@@ -45,10 +45,6 @@
 - 在弹出的目录选择器中找到 PICO Connect 日志目录
 - 浏览器会记住该目录，下次点击直接载入
 - 自动匹配 `pico_connect.log`、`pico_connect_sdk.log`、`main.log` 三个文件
-
-**方式 C：GitHub 样本测试**
-- 仓库 `samples/` 目录下包含 3 个 PICO 日志样本文件
-- 可下载后通过方式 A 载入测试
 
 ### 3. 分析日志
 
@@ -95,16 +91,6 @@ C:\Users\<用户>\AppData\Local\PICO Connect\logs\ps_server\  （用户级）
 C:\ProgramData\PICO Connect\logs\ps_server\                   （系统级）
 %TEMP%\PICO Connect\logs\ps_server                              （临时目录）
 ```
-
-## 样本数据
-
-`samples/` 目录包含 3 个脱敏后的 PICO 日志样本：
-
-| 文件 | 来源 | 时间范围 | 说明 |
-|------|------|----------|------|
-| `sample_A_openvr_app.txt` | PICO 主程序 | 21:46:04 ~ 21:49:06 | openvr_app 事件 |
-| `sample_B_steamvr_driver.txt` | SteamVR 驱动 | 21:46:00 ~ 21:49:11 | 驱动帧统计、姿态恢复 |
-| `sample_C_pico_sdk.txt` | PICO SDK | 21:46:00 ~ 21:49:14 | 码流统计、命令发送 |
 
 ## 浏览器兼容性
 
