@@ -122,6 +122,12 @@ C:\ProgramData\PICO Connect\logs\ps_server\                   （系统级）
 - **编码自动检测**：优先 UTF-8，检测到乱码自动回退 GB18030
 - **离线可用**：所有逻辑在浏览器本地运行，日志数据不会上传
 
+## 作者
+
+**WeideM7** — 项目发起与需求设计
+
+**Trae AI** — 代码实现与开发
+
 ## License
 
 MIT
