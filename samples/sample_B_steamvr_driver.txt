@@ -1,0 +1,50 @@
+[2026-09-28 21:46:00.002] [PSS] [warning] [29020|17668]pico_controller.cpp:303 UpdateTriggerInput: warning controller:1 update trigger without activate  ishand 1, this= 0x1ab535e33f0
+[2026-09-28 21:46:00.002] [PSS] [warning] [29020|17668]pico_controller.cpp:321 UpdateSystemButtonInput: warning controller:1 update system button without activate ishand 1, this= 0x1ab535e33f0
+[2026-09-28 21:46:00.002] [PSS] [warning] [29020|17668]pico_controller.cpp:303 UpdateTriggerInput: warning controller:2 update trigger without activate  ishand 1, this= 0x1ab535e3b30
+[2026-09-28 21:46:00.002] [PSS] [warning] [29020|17668]pico_controller.cpp:321 UpdateSystemButtonInput: warning controller:2 update system button without activate ishand 1, this= 0x1ab535e3b30
+[2026-09-28 21:46:00.049] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=-100, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:00.291] [PSS] [warning] [29020|17668]streaming_service_stub.cpp:528 operator (): enter pose recovery mode, update interval since last: 30ms
+[2026-09-28 21:46:00.294] [PSS] [warning] [29020|17668]streaming_service_stub.cpp:537 operator (): exit pose recovery mode, update count: 2
+[2026-09-28 21:46:00.540] [PSS] [info] [29020|21108]streaming_service_stub.cpp:344 WaitPosesUpdated: use backup hmd pose, this= 0x1ab537095d0
+[2026-09-28 21:46:00.951] [PSS] [info] [29020|21108]pico_hmd.cpp:585 PostPresent: hmd frame stats, current actual fps: 72history average fps: 87, this= 0x1ab5370b940
+[2026-09-28 21:46:01.952] [PSS] [info] [29020|21108]pico_hmd.cpp:585 PostPresent: hmd frame stats, current actual fps: 92history average fps: 87, this= 0x1ab5370b940
+[2026-09-28 21:46:02.266] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=-36, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:02.952] [PSS] [info] [29020|21108]pico_hmd.cpp:585 PostPresent: hmd frame stats, current actual fps: 91history average fps: 87, this= 0x1ab5370b940
+[2026-09-28 21:46:04.442] [PSS] [info] [29020|27280]pico_driver_provider.cpp:292 RunFrame: enter dashboard mode, this= 0x7ffc88a05960
+[2026-09-28 21:46:04.489] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=976, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:04.966] [PSS] [info] [29020|21108]pico_hmd.cpp:585 PostPresent: hmd frame stats, current actual fps: 90history average fps: 87, this= 0x1ab5370b940
+[2026-09-28 21:46:05.966] [PSS] [info] [29020|21108]pico_hmd.cpp:585 PostPresent: hmd frame stats, current actual fps: 89history average fps: 87, this= 0x1ab5370b940
+[2026-09-28 21:46:06.713] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=-335, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:08.893] [PSS] [info] [29020|27280]pico_driver_provider.cpp:299 RunFrame: exit dashboard mode, this= 0x7ffc88a05960
+[2026-09-28 21:46:08.944] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=189, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:09.048] [PSS] [error] [29020|21108]d3dcompositor.cpp:334 SubmitLayer: hmd error, present left texture is: 0000000040002902 right texture is: 0000000000000000, this= 0x1ab5370bc70
+[2026-09-28 21:46:09.987] [PSS] [info] [29020|21108]pico_hmd.cpp:585 PostPresent: hmd frame stats, current actual fps: 94history average fps: 87, this= 0x1ab5370b940
+[2026-09-28 21:46:11.156] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=516, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:13.380] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=-227, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:15.603] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=242, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:17.483] [PSS] [error] [29020|21108]d3dcompositor.cpp:334 SubmitLayer: hmd error, present left texture is: 0000000040002A02 right texture is: 0000000000000000, this= 0x1ab5370bc70
+[2026-09-28 21:46:17.827] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=-317, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:18.024] [PSS] [info] [29020|21108]pico_hmd.cpp:585 PostPresent: hmd frame stats, current actual fps: 87history average fps: 87, this= 0x1ab5370b940
+[2026-09-28 21:46:20.045] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=399, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:22.268] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=-1272, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:24.489] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=1208, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:25.535] [PSS] [error] [29020|21108]d3dcompositor.cpp:334 SubmitLayer: hmd error, present left texture is: 0000000040002342 right texture is: 0000000000000000, this= 0x1ab5370bc70
+[2026-09-28 21:46:26.050] [PSS] [info] [29020|21108]pico_hmd.cpp:585 PostPresent: hmd frame stats, current actual fps: 88history average fps: 87, this= 0x1ab5370b940
+[2026-09-28 21:46:26.710] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=63, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:28.935] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=543, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:29.368] [PSS] [warning] [29020|17668]streaming_service_stub.cpp:528 operator (): enter pose recovery mode, update interval since last: 31ms
+[2026-09-28 21:46:29.372] [PSS] [warning] [29020|17668]streaming_service_stub.cpp:537 operator (): exit pose recovery mode, update count: 3
+[2026-09-28 21:46:30.083] [PSS] [info] [29020|21108]pico_hmd.cpp:585 PostPresent: hmd frame stats, current actual fps: 69history average fps: 87, this= 0x1ab5370b940
+[2026-09-28 21:46:31.154] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=33, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:33.379] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=-1293, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:35.120] [PSS] [info] [29020|21108]pico_hmd.cpp:585 PostPresent: hmd frame stats, current actual fps: 79history average fps: 87, this= 0x1ab5370b940
+[2026-09-28 21:46:35.596] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=190, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:36.122] [PSS] [info] [29020|21108]pico_hmd.cpp:585 PostPresent: hmd frame stats, current actual fps: 77history average fps: 87, this= 0x1ab5370b940
+[2026-09-28 21:46:37.817] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=1762, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:40.039] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=-134, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:42.266] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=-162, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:44.490] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=-943, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:46.714] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=635, avg_fps=90, this= 0x1ab5370b940
+[2026-09-28 21:46:47.155] [PSS] [info] [29020|21108]pico_hmd.cpp:585 PostPresent: hmd frame stats, current actual fps: 86history average fps: 87, this= 0x1ab5370b940
+[2026-09-28 21:46:48.162] [PSS] [info] [29020|21108]pico_hmd.cpp:585 PostPresent: hmd frame stats, current actual fps: 75history average fps: 87, this= 0x1ab5370b940
+[2026-09-28 21:46:48.931] [PSS] [info] [29020|21108]pico_hmd.cpp:512 PostPresent: clock sync stats, clock_offset_delta_us=856, avg_fps=90, this= 0x1ab5370b940
