@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>三源日志时间对齐分析器</title>
+<style>
+:root{
+  --bg:#0f1115; --panel:#171a21; --panel2:#1d212b; --border:#2a2f3a;
+  --text:#d5dae3; --dim:#8a93a3; --accent:#5b9dff; --mark:#7a5c00;
+  --c0:#4da3ff; --c1:#4ade80; --c2:#fb923c;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:13px/1.45 "Segoe UI",system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+header{padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.slot{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:3px 8px}
+.slot.empty{opacity:.55}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+input[type=text],input[type=number]{background:#10131a;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:12px}
+.nameIn{width:64px}
+.offIn{width:64px}
+button{background:#242a36;color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px}
+button:hover{background:#2f3746}
+button.on{background:#2f4a75;border-color:#4a6ea0}
+.meta{color:var(--dim);font-size:11px;white-space:nowrap}
+.sep{width:1px;height:22px;background:var(--border);margin:0 4px}
+#tlWrap{position:relative;height:64px;background:var(--panel);border-bottom:1px solid var(--border);flex:none}
+#tl{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair;touch-action:none}
+#tStart,#tEnd{position:absolute;bottom:2px;font-size:10px;color:var(--dim);pointer-events:none}
+#tStart{left:8px}#tEnd{right:8px}
+main{flex:1;min-height:0;display:flex}
+#cols{display:flex;gap:1px;background:var(--border)}
+.col{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.colHead{flex:none;display:flex;align-items:center;gap:8px;padding:4px 8px;background:var(--panel2);border-bottom:1px solid var(--border);font-size:12px}
+.colHead .cur{margin-left:auto;color:var(--dim);font:11px Consolas,monospace;white-space:nowrap}
+.vp{flex:1;position:relative;overflow:auto;background:var(--bg)}
+.spacer{position:relative;width:max-content;min-width:100%}
+.win{position:absolute;top:0;left:0;right:0;will-change:transform}
+.row{height:22px;white-space:pre;font:12px/22px Consolas,Menlo,"Courier New",monospace;padding:0 8px;cursor:pointer;color:var(--text)}
+.row:hover{background:#1e2531}
+.row.active{background:#2a3a55 !important;box-shadow:inset 3px 0 0 var(--rowc,#fff)}
+.lt{color:var(--dim);user-select:none}
+.lt.inh{opacity:.35}
+.lr{margin-left:8px}
+mark{background:var(--mark);color:#ffe9a8;border-radius:2px;padding:0 1px}
+.badge{display:inline-block;min-width:14px;text-align:center;border-radius:3px;font-weight:700;color:#0b0d11;margin-right:2px;user-select:none}
+#mergedWrap{display:none;flex-direction:column;background:var(--bg)}
+body.v-merged #cols{display:none}
+body.v-merged #mergedWrap{display:flex}
+.hidden{display:none !important}
+#search{width:170px}
+.lbl{color:var(--dim);font-size:11px}
+</style>
+</head>
+<body>
+<header id="hdr"></header>
+<div id="tlWrap"><canvas id="tl"></canvas><span id="tStart"></span><span id="tEnd"></span></div>
+<main id="cols"></main>
+<main id="mergedWrap"><div class="vp" id="mvp"><div class="spacer"><div class="win"></div></div></div></main>
+
+<script>
+"use strict";
+/* ================= 时间解析 ================= */
+const BASE_DATE = new Date(2000,0,1).getTime();
+const DAY = 86400000;
+const MON = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+const P_FULL    = /(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})[T\s]+(\d{1,2}):(\d{2}):(\d{2})(?:[.,:](\d{1,6}))?/;
+const P_FULL_CN = /(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日[\sT]*(\d{1,2}):(\d{2}):(\d{2})(?:[.,:](\d{1,6}))?/;
+const P_FULL_EN = /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[- ](\d{1,2})[- ](\d{4})[\sT]+(\d{1,2}):(\d{2}):(\d{2})(?:[.,:](\d{1,6}))?/i;
+const P_TIME    = /(?:^|[\s\[\(])(\d{1,2}):(\d{2}):(\d{2})(?:[.,:](\d{1,3}))?(?=[\s\]\),;]|$)/;
+const P_UNIX    = /(?:^|[\s\[\(])(1\d{12}|1\d{9})(?=[\s\]\),;]|$)/;
+
+function msFrom(frac){
+  if(!frac) return 0;
+  let n = parseInt(frac,10);
+  if(frac.length===1) n*=100; else if(frac.length===2) n*=10;
+  else if(frac.length>3) n=Math.round(n/Math.pow(10,frac.length-3));
+  return n;
+}
+/* 返回 {rows:[{t,raw,inherited}], hasDate}  t 为 null 表示该行无时间且前面也没时间 */
+function parseLog(text){
+  const lines = text.split(/\r?\n/);
+  const rows = [];
+  let baseDate = BASE_DATE, lastMs = null, hasDate = false, m;
+  for(const raw of lines){
+    if(raw.trim()==='') continue;
+    let t = null, inherited = false;
+    if((m = P_FULL.exec(raw)) || (m = P_FULL_CN.exec(raw))){
+      t = new Date(+m[1], m[2]-1, +m[3], +m[4], +m[5], +m[6], msFrom(m[7])).getTime();
+      baseDate = new Date(+m[1], m[2]-1, +m[3]).getTime();
+      hasDate = true;
+    } else if((m = P_FULL_EN.exec(raw))){
+      const mo = MON[m[1].toLowerCase()];
+      t = new Date(+m[3], mo, +m[2], +m[4], +m[5], +m[6], msFrom(m[7])).getTime();
+      baseDate = new Date(+m[3], mo, +m[2]).getTime();
+      hasDate = true;
+    } else if((m = P_TIME.exec(raw))){
+      t = baseDate + (+m[1])*3600000 + (+m[2])*60000 + (+m[3])*1000 + msFrom(m[4]);
+      if(lastMs !== null && t < lastMs - 12*3600000) t += DAY; // 跨午夜
+    } else if((m = P_UNIX.exec(raw))){
+      t = m[1].length === 13 ? +m[1] : +m[1]*1000;
+      hasDate = true;
+    }
+    if(t === null){
+      if(lastMs === null){ rows.push({t:null, raw, inherited:true}); continue; }
+      t = lastMs; inherited = true;
+    } else lastMs = t;
+    rows.push({t, raw, inherited});
+  }
+  return {rows, hasDate};
+}
+
+/* ================= 工具 ================= */
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function pad(n,l){ return String(n).padStart(l||2,'0'); }
+function fmtT(t, withMs){
+  if(t === null || t === undefined || !isFinite(t)) return '';
+  const d = new Date(t);
+  let s = '';
+  if(!(d.getFullYear()===2000 && d.getMonth()===0 && d.getDate()===1))
+    s = pad(d.getMonth()+1)+'-'+pad(d.getDate())+' ';
+  s += pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+  if(withMs) s += '.'+pad(d.getMilliseconds(),3);
+  return s;
+}
+function escRe(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+function debounce(fn,ms){ let h; return (...a)=>{ clearTimeout(h); h=setTimeout(()=>fn(...a),ms); }; }
+
+/* ================= 状态 ================= */
+const COLORS = ['#4da3ff','#4ade80','#fb923c'];
+const NAMES  = ['A','B','C'];
+const sources = COLORS.map((c,i)=>({i, color:c, name:'日志'+NAMES[i], file:null, rows:[], hasDate:false, offset:0, dateShift:0}));
+let currentTime = null, query = '', onlyMatch = false, merged = false;
+let matchTimes = [], matchPtr = -1;
+
+const eff = (r, src) => r.t === null ? null : r.t + src.dateShift + src.offset*1000;
+/* 无日期日志自动对齐到带日期日志的日期（仅平移整数天，不影响跨午夜推断） */
+function alignDateless(){
+  const ref = sources.find(s => s.rows.length && s.hasDate);
+  let refDay = 0;
+  if(ref){
+    for(const r of ref.rows){ if(r.t!==null){ const d=new Date(r.t); refDay=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime(); break; } }
+  }
+  for(const s of sources){
+    if(!s.rows.length) { s.dateShift = 0; continue; }
+    s.dateShift = (!s.hasDate && ref) ? (refDay - BASE_DATE) : 0;
+  }
+}
+const loaded = () => sources.filter(s => s.rows.length);
+function viewRows(src){
+  if(!onlyMatch || !query) return src.rows;
+  const q = query.toLowerCase();
+  return src.rows.filter(r => r.raw.toLowerCase().includes(q));
+}
+function rangeOf(){
+  let lo = Infinity, hi = -Infinity;
+  for(const s of loaded()){
+    for(const r of s.rows){ const t=eff(r,s); if(t!==null){ if(t<lo) lo=t; break; } }
+    for(let k=s.rows.length-1;k>=0;k--){ const t=eff(s.rows[k],s); if(t!==null){ if(t>hi) hi=t; break; } }
+  }
+  if(lo>hi){ lo = Date.now(); hi = lo + 60000; }
+  return [lo, hi];
+}
+/* 最后一个 eff<=t 的行索引 */
+function upperBound(rows, t, src){
+  let lo=0, hi=rows.length-1, ans=-1;
+  while(lo<=hi){
+    const mid=(lo+hi)>>1, mt=eff(rows[mid],src);
+    if(mt===null || mt<=t){ if(mt!==null) ans=mid; lo=mid+1; }
+    else hi=mid-1;
+  }
+  return ans;
+}
+/* 时间上最接近 t 的行索引（前后取近者），无有效行返回 -1 */
+function nearestIdx(rows, t, src){
+  const ub = upperBound(rows, t, src);
+  if(ub < 0){
+    for(let k=0;k<rows.length;k++) if(eff(rows[k],src)!==null) return k;
+    return -1;
+  }
+  const next = ub+1;
+  if(next >= rows.length) return ub;
+  const t1 = eff(rows[ub], src), t2 = eff(rows[next], src);
+  if(t2 === null) return ub;
+  return Math.abs(t2-t) < Math.abs(t-t1) ? next : ub;
+}
+
+/* ================= 虚拟列表 ================= */
+const ROW_H = 22;
+class VList{
+  constructor(vp){
+    this.vp = vp;
+    this.spacer = vp.firstElementChild;
+    this.win = this.spacer.firstElementChild;
+    this.rows = []; this.activeIdx = -1; this.renderRow = null;
+    vp.addEventListener('scroll', ()=>this.render());
+  }
+  setRows(rows){
+    this.rows = rows;
+    let ml = 10;
+    for(const r of rows) if(r.raw.length > ml) ml = r.raw.length;
+    this.spacer.style.height = rows.length*ROW_H + 'px';
+    this.spacer.style.width = (ml*7.3 + 170) + 'px';
+    this.render();
+  }
+  scrollToIndex(i){
+    if(i < 0) return;
+    this.vp.scrollTop = Math.max(0, i*ROW_H - this.vp.clientHeight/2);
+  }
+  render(){
+    const rows = this.rows, vh = this.vp.clientHeight || 400;
+    const start = Math.max(0, Math.floor(this.vp.scrollTop/ROW_H) - 30);
+    const end = Math.min(rows.length, Math.ceil((this.vp.scrollTop+vh)/ROW_H) + 30);
+    let html = '';
+    for(let k=start;k<end;k++) html += this.renderRow(rows[k], k, k===this.activeIdx);
+    this.win.innerHTML = html;
+    this.win.style.transform = 'translateY('+(start*ROW_H)+'px)';
+  }
+}
+
+/* ================= 界面构建 ================= */
+const hdr = document.getElementById('hdr');
+const colsEl = document.getElementById('cols');
+const colObjs = [];
+
+sources.forEach((src,i)=>{
+  const slot = document.createElement('div');
+  slot.className = 'slot empty'; slot.id = 'slot'+i;
+  slot.innerHTML =
+    '<span class="dot" style="background:'+src.color+'"></span>'+
+    '<input type="text" class="nameIn" value="'+src.name+'" title="来源名称">'+
+    '<button class="pick">选择TXT</button>'+
+    '<input type="file" accept=".txt,.log,text/plain" class="hidden">'+
+    '<span class="meta info">未载入</span>'+
+    '<span class="lbl">偏移s</span><input type="number" class="offIn" step="0.1" value="0" title="时间偏移（秒），用于校准不同设备的时钟差">'+
+    '<button class="clear hidden">✕</button>';
+  hdr.appendChild(slot);
+  const fileIn = slot.querySelector('input[type=file]');
+  slot.querySelector('.pick').onclick = ()=>fileIn.click();
+  fileIn.onchange = ()=>{ if(fileIn.files[0]) loadFile(i, fileIn.files[0]); fileIn.value=''; };
+  slot.querySelector('.nameIn').oninput = e=>{ src.name = e.target.value || ('日志'+NAMES[i]); refreshHeads(); };
+  slot.querySelector('.offIn').onchange = e=>{
+    src.offset = parseFloat(e.target.value)||0;
+    refreshAll();
+  };
+  slot.querySelector('.clear').onclick = ()=>clearSrc(i);
+
+  const col = document.createElement('div');
+  col.className = 'col';
+  col.innerHTML = '<div class="colHead"><span class="dot" style="background:'+src.color+'"></span><b class="ttl">'+src.name+'</b><span class="cur"></span></div>'+
+                  '<div class="vp"><div class="spacer"><div class="win"></div></div></div>';
+  colsEl.appendChild(col);
+  const vp = col.querySelector('.vp');
+  const vl = new VList(vp);
+  vl.renderRow = (r, k, act)=>{
+    const t = eff(r, src);
+    const tstr = t===null ? '' : fmtT(t, true);
+    return '<div class="row'+(act?' active':'')+'" data-k="'+k+'" style="--rowc:'+src.color+'" title="'+esc(r.raw)+'">'+
+      '<span class="lt'+(r.inherited?' inh':'')+'">'+(tstr||'↳')+'</span><span class="lr">'+hlRaw(r.raw)+'</span></div>';
+  };
+  vp.addEventListener('click', e=>{
+    const row = e.target.closest('.row'); if(!row) return;
+    const r = vl.rows[+row.dataset.k]; if(!r) return;
+    const t = eff(r, src); if(t===null) return;
+    pickTime(t);
+  });
+  colObjs.push({src, col, vl, curEl: col.querySelector('.cur'), ttlEl: col.querySelector('.ttl')});
+});
+
+// 控制条
+const ctrl = document.createElement('div');
+ctrl.style.display='contents';
+ctrl.innerHTML =
+  '<span class="sep"></span>'+
+  '<input type="text" id="search" placeholder="搜索关键字高亮 / 过滤">'+
+  '<button id="mPrev" title="上一个匹配">↑</button><button id="mNext" title="下一个匹配">↓</button>'+
+  '<span class="meta" id="mCount"></span>'+
+  '<label class="meta"><input type="checkbox" id="onlyM"> 仅匹配</label>'+
+  '<span class="sep"></span>'+
+  '<button id="picoBtn" title="从 PICO Connect 日志目录一键载入\n首次使用需选择 PICO Connect\\logs\\ps_server 目录">PICO日志</button>'+
+  '<button id="viewBtn" title="切换 三栏对齐 / 合并时间流">合并流</button>'+
+  '<button id="aiBtn" title="导出当前时间点前后各源日志，供 AI 分析">AI分析导出</button>';
+hdr.appendChild(ctrl);
+
+document.getElementById('search').addEventListener('input', debounce(e=>{
+  query = e.target.value.trim();
+  refreshAll();
+},150));
+document.getElementById('onlyM').onchange = e=>{ onlyMatch = e.target.checked; refreshAll(); };
+document.getElementById('mPrev').onclick = ()=>jumpMatch(-1);
+document.getElementById('mNext').onclick = ()=>jumpMatch(1);
+document.getElementById('viewBtn').onclick = e=>{
+  merged = !merged;
+  document.body.classList.toggle('v-merged', merged);
+  e.target.textContent = merged ? '三栏' : '合并流';
+  e.target.classList.toggle('on', merged);
+  refreshAll();
+};
+document.getElementById('picoBtn').onclick = loadPicoSamples;
+document.getElementById('aiBtn').onclick = aiExport;
+
+function hlRaw(raw){
+  let s = esc(raw);
+  if(query){
+    try{ s = s.replace(new RegExp('('+escRe(esc(query))+')','gi'), '<mark>$1</mark>'); }catch(e){}
+  }
+  return s;
+}
+
+/* ================= 合并流 ================= */
+const mv = new VList(document.getElementById('mvp'));
+mv.renderRow = (r, k, act)=>{
+  const src = sources[r.src];
+  return '<div class="row'+(act?' active':'')+'" data-k="'+k+'" style="--rowc:'+src.color+'" title="'+esc(r.raw)+'">'+
+    '<span class="badge" style="background:'+src.color+'">'+NAMES[r.src]+'</span>'+
+    '<span class="lt'+(r.inherited?' inh':'')+'">'+fmtT(r.t, true)+'</span>'+
+    '<span class="lr">'+hlRaw(r.raw)+'</span></div>';
+};
+document.getElementById('mvp').addEventListener('click', e=>{
+  const row = e.target.closest('.row'); if(!row) return;
+  const r = mv.rows[+row.dataset.k];
+  if(r && r.t!==null) pickTime(r.t);
+});
+function mergedRows(){
+  let all = [];
+  const q = query.toLowerCase();
+  for(const s of loaded()){
+    for(const r of s.rows){
+      const t = eff(r, s);
+      if(t===null) continue;
+      if(onlyMatch && query && !r.raw.toLowerCase().includes(q)) continue;
+      all.push({t, src:s.i, raw:r.raw, inherited:r.inherited});
+    }
+  }
+  all.sort((a,b)=>a.t-b.t);
+  return all;
+}
+
+/* ================= 时间轴 ================= */
+const cvs = document.getElementById('tl');
+const ctx = cvs.getContext('2d');
+function drawTimeline(){
+  const dpr = devicePixelRatio||1;
+  const W = cvs.clientWidth, H = cvs.clientHeight;
+  cvs.width = W*dpr; cvs.height = H*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+  const list = loaded();
+  document.getElementById('tStart').textContent = '';
+  document.getElementById('tEnd').textContent = '';
+  if(!list.length){
+    ctx.fillStyle = '#8a93a3'; ctx.font = '12px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('载入 1~3 个 TXT 日志后，这里会显示各日志在时间上的分布密度（点击/拖动跳转）', W/2, H/2+4);
+    delete cvs._lo; delete cvs._hi;
+    return;
+  }
+  let [lo, hi] = rangeOf();
+  if(hi-lo < 1000) hi = lo + 1000;
+  const p = (hi-lo)*0.01; lo -= p; hi += p;
+  const B = 240, bw = W/B;
+  const counts = list.map(()=>new Float32Array(B));
+  let max = 1;
+  list.forEach((s,si)=>{
+    for(const r of s.rows){
+      const t = eff(r,s); if(t===null) continue;
+      const b = Math.min(B-1, Math.floor((t-lo)/(hi-lo)*B));
+      counts[si][b]++; if(counts[si][b]>max) max=counts[si][b];
+    }
+  });
+  const base = H-14;
+  list.forEach((s,si)=>{
+    ctx.beginPath(); ctx.moveTo(0, base);
+    for(let b=0;b<B;b++){
+      const h = Math.sqrt(counts[si][b]/max)*(base-6);
+      ctx.lineTo(b*bw+bw/2, base-h);
+    }
+    ctx.lineTo(W, base); ctx.closePath();
+    ctx.fillStyle = s.color + '55'; ctx.fill();
+    ctx.strokeStyle = s.color; ctx.lineWidth = 1; ctx.stroke();
+  });
+  ctx.strokeStyle = '#2a2f3a'; ctx.beginPath(); ctx.moveTo(0,base+.5); ctx.lineTo(W,base+.5); ctx.stroke();
+  if(currentTime!==null && currentTime>=lo && currentTime<=hi){
+    const x = (currentTime-lo)/(hi-lo)*W;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x,4); ctx.lineTo(x,base); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font='10px Consolas,monospace'; ctx.textAlign = x>W/2?'right':'left';
+    ctx.fillText(fmtT(currentTime,true), x + (x>W/2?-4:4), 10);
+  }
+  document.getElementById('tStart').textContent = fmtT(lo);
+  document.getElementById('tEnd').textContent = fmtT(hi);
+  cvs._lo = lo; cvs._hi = hi;
+}
+function tlSeek(e){
+  if(cvs._lo===undefined) return;
+  const r = cvs.getBoundingClientRect();
+  const x = Math.max(0, Math.min(r.width, e.clientX - r.left));
+  pickTime(cvs._lo + (x/r.width)*(cvs._hi - cvs._lo));
+}
+cvs.addEventListener('pointerdown', e=>{ cvs.setPointerCapture(e.pointerId); tlSeek(e); });
+cvs.addEventListener('pointermove', e=>{ if(e.buttons) tlSeek(e); });
+window.addEventListener('resize', debounce(()=>{ drawTimeline(); for(const c of colObjs) c.vl.render(); mv.render(); },120));
+
+/* ================= 同步配对 ================= */
+function pickTime(t){
+  currentTime = t;
+  syncAll();
+}
+function syncAll(){
+  for(const c of colObjs){
+    const rows = viewRows(c.src);
+    if(c.vl.rows !== rows) c.vl.setRows(rows);
+    if(!c.src.rows.length){ c.curEl.textContent=''; continue; }
+    let idx = currentTime===null ? 0 : nearestIdx(rows, currentTime, c.src);
+    if(idx < 0) idx = 0;
+    c.vl.activeIdx = idx;
+    c.vl.scrollToIndex(idx);
+    c.vl.render();
+    const t = eff(rows[idx], c.src);
+    if(t!==null && currentTime!==null){
+      const d = (t - currentTime)/1000;
+      c.curEl.textContent = fmtT(t,true) + (Math.abs(d)>0.0005 ? '  Δ'+(d>0?'+':'')+d.toFixed(2)+'s' : '  Δ0s');
+    } else c.curEl.textContent = t===null ? '' : fmtT(t,true);
+  }
+  if(merged){
+    const rows = mergedRows();
+    mv.setRows(rows);
+    let idx = currentTime===null ? 0 : nearestIdx(rows, currentTime, {offset:0, dateShift:0});
+    if(idx < 0) idx = 0;
+    mv.activeIdx = idx;
+    mv.scrollToIndex(idx);
+    mv.render();
+  }
+  drawTimeline();
+}
+function refreshAll(){
+  for(const c of colObjs) c.vl.setRows(viewRows(c.src));
+  rebuildMatches();
+  syncAll();
+}
+function rebuildMatches(){
+  matchTimes = []; matchPtr = -1;
+  if(!query){ document.getElementById('mCount').textContent=''; return; }
+  const q = query.toLowerCase();
+  for(const s of loaded()) for(const r of s.rows){
+    const t = eff(r,s);
+    if(t!==null && r.raw.toLowerCase().includes(q)) matchTimes.push(t);
+  }
+  matchTimes.sort((a,b)=>a-b);
+  document.getElementById('mCount').textContent = matchTimes.length ? matchTimes.length+' 匹配' : '无匹配';
+}
+function jumpMatch(dir){
+  if(!matchTimes.length) return;
+  matchPtr = matchPtr < 0 ? (dir>0?0:matchTimes.length-1) : (matchPtr+dir+matchTimes.length)%matchTimes.length;
+  pickTime(matchTimes[matchPtr]);
+  document.getElementById('mCount').textContent = (matchPtr+1)+'/'+matchTimes.length;
+}
+function refreshHeads(){
+  for(const c of colObjs) c.ttlEl.textContent = c.src.name;
+}
+
+/* ================= AI 分析导出（MCP 数据接口） ================= */
+/* 暴露给浏览器 MCP / 控制台调用：window.logAnalyzer.context(t?, radiusSec?) */
+window.logAnalyzer = {
+  /* 当前时间点（或指定时间）前后各源日志，纯文本，供 AI 读取分析 */
+  context(center, radiusSec){
+    const r = (radiusSec||10)*1000;
+    const c = center!==undefined ? center : currentTime;
+    if(c===null) return '(尚未选择时间点)';
+    let out = '=== 时间窗 '+fmtT(c-r,true)+' ~ '+fmtT(c+r,true)+' ===\n';
+    for(const s of loaded()){
+      out += '\n--- ['+NAMES[s.i]+'] '+s.name+' (偏移'+s.offset+'s) ---\n';
+      let n=0;
+      for(const row of s.rows){
+        const t = eff(row, s);
+        if(t===null || t < c-r || t > c+r) continue;
+        out += fmtT(t,true)+'  '+row.raw.slice(0,300)+'\n';
+        if(++n>=200){ out += '...(截断)\n'; break; }
+      }
+      if(!n) out += '(该窗口无记录)\n';
+    }
+    return out;
+  },
+  stats(){
+    return loaded().map(s=>{
+      const tr = srcRange(s);
+      return '['+NAMES[s.i]+'] '+s.name+': '+s.rows.length+' 行, '+(tr?fmtT(tr[0])+' ~ '+fmtT(tr[1]):'无时间');
+    }).join('\n') || '(未载入日志)';
+  },
+  seek(t){ pickTime(t); return '已跳转到 '+fmtT(t,true); },
+  search(q){ document.getElementById('search').value=q; query=q; refreshAll(); return matchTimes.length+' 处匹配'; }
+};
+function aiExport(){
+  const txt = window.logAnalyzer.context(undefined, 10);
+  navigator.clipboard.writeText(txt).then(()=>{
+    const btn = document.getElementById('aiBtn');
+    btn.textContent = '已复制!'; setTimeout(()=>btn.textContent='AI分析导出', 1200);
+  });
+}
+
+/* ================= 文件载入 ================= */
+async function readFileSmart(file){
+  const buf = await file.arrayBuffer();
+  let text = new TextDecoder('utf-8').decode(buf);
+  const bad = (text.match(/\uFFFD/g)||[]).length;
+  if(bad > Math.max(4, text.length*0.001)){
+    try{ text = new TextDecoder('gb18030').decode(buf); }catch(e){}
+  }
+  return text;
+}
+function updateSlotInfo(i){
+  const src = sources[i];
+  const slot = document.getElementById('slot'+i);
+  if(!src.rows.length){ slot.querySelector('.info').textContent = '未载入'; return; }
+  const tr = srcRange(src);
+  let info = src.rows.length+' 行'+(tr ? ' | '+fmtT(tr[0])+' ~ '+fmtT(tr[1]) : ' | 未识别到时间戳');
+  if(src.dateShift){
+    const d = new Date(BASE_DATE + src.dateShift);
+    info += ' | 日期对齐至'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  }
+  slot.querySelector('.info').textContent = info;
+}
+function loadText(i, text, fileName, dispName){
+  const {rows, hasDate} = parseLog(text);
+  const src = sources[i];
+  src.rows = rows; src.hasDate = hasDate; src.file = fileName;
+  if(dispName){ src.name = dispName; document.querySelector('#slot'+i+' .nameIn').value = dispName; }
+  alignDateless();
+  const slot = document.getElementById('slot'+i);
+  slot.classList.remove('empty');
+  slot.querySelector('.clear').classList.remove('hidden');
+  sources.forEach((s,j)=>{ if(s.rows.length) updateSlotInfo(j); });
+  refreshHeads();
+  refreshAll();
+  if(currentTime===null){
+    const [lo] = rangeOf();
+    currentTime = lo;
+    syncAll();
+  }
+  return rows.length;
+}
+async function loadFile(i, file){
+  loadText(i, await readFileSmart(file), file.name);
+}
+function srcRange(src){
+  let lo=null, hi=null;
+  for(const r of src.rows){ const t=eff(r,src); if(t!==null){ lo=t; break; } }
+  for(let k=src.rows.length-1;k>=0;k--){ const t=eff(src.rows[k],src); if(t!==null){ hi=t; break; } }
+  return lo===null ? null : [lo,hi];
+}
+function clearSrc(i){
+  const src = sources[i];
+  src.rows = []; src.file = null; src.hasDate = false; src.dateShift = 0;
+  const slot = document.getElementById('slot'+i);
+  slot.classList.add('empty');
+  slot.querySelector('.clear').classList.add('hidden');
+  slot.querySelector('.info').textContent = '未载入';
+  colObjs[i].vl.activeIdx = -1;
+  alignDateless();
+  sources.forEach((s,j)=>{ if(s.rows.length) updateSlotInfo(j); });
+  if(!loaded().length) currentTime = null;
+  refreshAll();
+}
+// 拖放载入
+window.addEventListener('dragover', e=>e.preventDefault());
+window.addEventListener('drop', e=>{
+  e.preventDefault();
+  const files = [...e.dataTransfer.files].filter(f=>/\.(txt|log)$/i.test(f.name) || f.type.startsWith('text'));
+  for(const f of files){
+    const slot = sources.find(s=>!s.rows.length);
+    if(!slot) break;
+    loadFile(slot.i, f);
+  }
+});
+
+/* ================= PICO 日志一键载入（File System Access API） ================= */
+const PICO_DIR_HANDLE_KEY = 'pico_log_dir_handle';
+const PICO_LOG_NAMES = ['pico_connect.log','pico_connect_sdk.log','main.log'];
+const PICO_LOG_LABELS = ['主程序','SDK','Main'];
+let picoFirstClick = true;
+
+async function loadPicoSamples(){
+  const btn = document.getElementById('picoBtn');
+  let dirHandle = null;
+
+  // 首次点击时提示
+  if(picoFirstClick){
+    alert('因权限问题需要手动选择 PICO Connect\\logs\\ps_server 目录');
+    picoFirstClick = false;
+  }
+
+  // 1. 尝试从 IndexedDB 恢复上次选择的目录句柄
+  try{
+    const db = await new Promise((res,rej)=>{
+      const r = indexedDB.open('LogAnalyzer',1);
+      r.onupgradeneeded = ()=> r.result.createObjectStore('handles');
+      r.onsuccess = ()=> res(r.result);
+      r.onerror = ()=> rej(r.error);
+    });
+    const tx = db.transaction('handles','readonly');
+    const val = await tx.objectStore('handles').get(PICO_DIR_HANDLE_KEY);
+    dirHandle = val;
+  }catch(e){}
+
+  // 2. 如果没有有效句柄，弹窗让用户选择
+  if(!dirHandle || !(await verifyPermission(dirHandle))){
+    try{
+      dirHandle = await window.showDirectoryPicker();
+    }catch(e){ return; /* 用户取消 */ }
+    // 保存到 IndexedDB
+    try{
+      const db = await new Promise((res,rej)=>{
+        const r = indexedDB.open('LogAnalyzer',1);
+        r.onupgradeneeded = ()=> r.result.createObjectStore('handles');
+        r.onsuccess = ()=> res(r.result);
+        r.onerror = ()=> rej(r.error);
+      });
+      const tx = db.transaction('handles','readwrite');
+      tx.objectStore('handles').put(dirHandle, PICO_DIR_HANDLE_KEY);
+    }catch(e){}
+  }
+
+  // 3. 遍历目录，按文件名匹配日志
+  try{
+    let loadedCount = 0;
+    const allEntries = [];
+    for await (const entry of dirHandle.values()){
+      if(entry.kind === 'file') allEntries.push(entry);
+      else if(entry.kind === 'directory'){
+        // 也扫描子目录，例如 ps_server
+        for await (const sub of entry.values()){
+          if(sub.kind === 'file') allEntries.push(sub);
+        }
+      }
+    }
+
+    // 按优先级顺序匹配：pico_connect.log → sdk.log → main.log
+    for(let i=0;i<PICO_LOG_NAMES.length;i++){
+      const match = allEntries.find(e => e.name.toLowerCase() === PICO_LOG_NAMES[i]);
+      if(match){
+        const file = await match.getFile();
+        const text = await readFileSmart(file);
+        const slot = sources.find(s=>!s.rows.length);
+        if(!slot) break;
+        loadText(slot.i, text, file.name, PICO_LOG_LABELS[i]);
+        loadedCount++;
+      }
+    }
+
+    if(loadedCount===0){
+      btn.textContent = '未找到';
+      alert('在所选目录及其子目录中未找到 PICO 日志文件。\n期望文件：'+PICO_LOG_NAMES.join(', '));
+      setTimeout(()=>btn.textContent='PICO日志', 1500);
+      return;
+    }
+
+    btn.textContent = '已载入 '+loadedCount;
+    setTimeout(()=>btn.textContent='PICO日志', 1200);
+
+    // 自动跳转到有数据的时间范围末尾（实际断开事件附近）
+    const [lo, hi] = rangeOf();
+    pickTime(hi);
+  }catch(err){
+    btn.textContent = '失败';
+    alert('载入 PICO 日志出错:\n'+err.message);
+    setTimeout(()=>btn.textContent='PICO日志', 1500);
+  }
+}
+
+/* 验证目录权限（showDirectoryPicker 选择的句柄需要用户授权） */
+async function verifyPermission(dirHandle){
+  try{
+    if(await dirHandle.requestPermission({mode:'read'}) === 'granted') return true;
+  }catch(e){}
+  return false;
+}
+
+/* 初始 */
+refreshAll();
+</script>
+</body>
+</html>
